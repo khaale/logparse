@@ -77,25 +77,22 @@ impl<R: BufRead> EventReader<R> {
     fn handle_line(& self, line: &str) -> Option<Event> {
 
         lazy_static! {
-        static ref PRE_EXECUTE_PACKAGE_RGX: Regex = Regex::new(r"Pre-execute package (.*)").unwrap();
-    }
-        lazy_static! {
-        static ref CONTAINER_NAME_RGX: Regex = Regex::new(r"Container Name       : (.*)").unwrap();
-    }
-        lazy_static! {
-        static ref PRE_EXECUTE_TASK_RGX: Regex = Regex::new(r"PRE EXECUTE (.*)").unwrap();
-    }
-        lazy_static! {
-        static ref POST_EXECUTE_TASK_RGX: Regex = Regex::new(r"POST EXECUTE (.*)").unwrap();
-    }
+            static ref PRE_EXECUTE_PACKAGE_RGX: Regex = Regex::new(r"Pre-execute package (.*)").unwrap();
+            static ref CONTAINER_NAME_RGX: Regex = Regex::new(r"Container Name       : (.*)").unwrap();
+            static ref PRE_EXECUTE_TASK_RGX: Regex = Regex::new(r"PRE EXECUTE (.*)").unwrap();
+            static ref POST_EXECUTE_TASK_RGX: Regex = Regex::new(r"POST EXECUTE (.*)").unwrap();
+        }
 
-        None.or(self.handle_log_event(line, &*PRE_EXECUTE_PACKAGE_RGX).map(|e| Event::PackageStarted(e)))
-            .or(self.handle_log_event(line, &*CONTAINER_NAME_RGX).map(|e| Event::ContainerFinished(e)))
-            .or(match self.check_ssis_event(line) {
-                None => None,
-                Some(dt) => None.or(self.handle_ssis_event(line, &dt, &*PRE_EXECUTE_TASK_RGX).map(|e| Event::PreExecuteTask(e)))
-                    .or(self.handle_ssis_event(line, &dt, &*POST_EXECUTE_TASK_RGX).map(|e| Event::PostExecuteTask(e)))
-            })
+        match self.check_ssis_event(line) {
+            //log events
+            None => None
+                    .or(self.handle_log_event(line, &*PRE_EXECUTE_PACKAGE_RGX).map(Event::PackageStarted))
+                    .or(self.handle_log_event(line, &*CONTAINER_NAME_RGX).map(Event::ContainerFinished)),
+            //SSIS events
+            Some(dt) => None
+                    .or(self.handle_ssis_event(line, &dt, &*PRE_EXECUTE_TASK_RGX).map(Event::PreExecuteTask))
+                    .or(self.handle_ssis_event(line, &dt, &*POST_EXECUTE_TASK_RGX).map(Event::PostExecuteTask))
+        }
     }
 
     pub fn next(&mut self) -> Option<Event> {
