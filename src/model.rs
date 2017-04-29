@@ -46,11 +46,6 @@ pub struct Builder {
 
 impl Builder {
 
-    #[inline]
-    fn last_package(&mut self) -> &mut Package {
-        self.packages.last_mut().unwrap()
-    }
-
     pub fn new() -> Builder {
         Builder {
             packages: Vec::new(),
@@ -74,19 +69,23 @@ impl Builder {
             start_time: evt.time.clone(),
             end_time: evt.time
         };
-
-        self.last_package().tasks.push(task);
-        //self.tasks_stack.push(RefCell::new(self.last_package().tasks.last().unwrap()));
+        self.tasks_stack.push(task);
     }
 
     pub fn post_task(&mut self, evt: &SsisEvent) {
-        self.last_package().tasks.last_mut().unwrap()
-            .set_end_time(evt.time);
+        let mut task = self.tasks_stack.pop().unwrap();
+
+        task.set_end_time(evt.time);
+
+        if let Some(parent_task) = self.tasks_stack.last_mut() {
+            parent_task.tasks.push(task)
+        } else {
+            self.packages.last_mut().unwrap().tasks.push(task)
+        }
     }
 
     pub fn container_name(&mut self, evt: &LogEvent) {
-        let package = self.last_package();
-
+        let package = self.packages.last_mut().unwrap();
         package.set_container_name(evt.value.clone());
     }
 }
@@ -218,7 +217,7 @@ mod tests {
         let actual_task1 = tasks.get(0).unwrap();
         assert!(actual_task1.name == "task1");
         assert!(actual_task1.tasks.len() == 1);
-        let actual_task2 = actual_task1.tasks.get(1).unwrap();
+        let actual_task2 = actual_task1.tasks.get(0).unwrap();
         assert!(actual_task2.name == "task2");
     }
 }
