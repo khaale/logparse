@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Aleksander_Khanteev"]
 
 [dependencies]
+itertools = "0.5"
 chrono = "0.3"
 regex = "0.2"
-lazy_static = "0.2.8"
+lazy_static = "0.2"
