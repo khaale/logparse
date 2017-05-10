@@ -9,12 +9,59 @@ extern crate itertools;
 use reader::*;
 use model::*;
 use std::io::BufReader;
-use std::fs::File;
+use std::fs;
 use itertools::Itertools;
+use std::iter::Iterator;
 
 fn main() {
 
-    let f = File::open(r"C:\Users\Aleksander\Documents\projects\logparse\log.txt").unwrap();
+    let paths = fs::read_dir(r"C:\Work\Projects\logparser").unwrap();
+
+    let packages: Vec<Package> = paths
+        .map(|x| x.unwrap().path())
+        .filter(|x|
+            match x.extension() {
+                Some(ext) if ext == "log" =>
+                    { println!("Processing: {}", x.display()); true },
+                _ =>
+                    { println!("Skipping: {}", x.display()); false }
+        })
+        .flat_map(
+            |x| match x.to_str() {
+                Some(p) => get_packages_from_file(p),
+                None => Vec::new()
+            })
+        .collect::<Vec<_>>();
+
+    let sorted = packages.iter()
+        .flat_map(|p| {
+            get_leaf_tasks(&p.tasks)
+                .iter()
+                .map(|t| (
+                    (&p.package_name, &p.container_name, &t.name),
+                    t.end_time.signed_duration_since(t.start_time).num_seconds()
+                ))
+                .collect::<Vec<_>>()
+        })
+        .group_by(|x| x.0)
+        .into_iter()
+        .map(|g| (g.0, g.1.map(|x| x.1).sum::<i64>()))
+        .sorted_by(|x1, x2| x2.1.cmp(&x1.1));
+
+    sorted
+        .iter()
+        .take(10)
+        .foreach(|x| println!(
+            "{}\t{}\t{}\t{:.2}",
+            (x.0).0,
+            (x.0).1,
+            (x.0).2,
+            (x.1 as f64) / 60f64
+    ));
+}
+
+fn get_packages_from_file(path: &str) -> Vec<Package>{
+    let f = fs::File::open(path).unwrap();
     let r = BufReader::new(f);
 
     let mut reader = EventReader::new(r);
@@ -28,23 +75,8 @@ fn main() {
             Event::PostExecuteTask(e) => builder.post_task(&e)
         }
     }
-    println!("{:?}", builder.packages);
 
-    let result = builder.packages.iter()
-        .flat_map(|p| {
-            get_leaf_tasks(&p.tasks)
-                .iter()
-                .map(|t| (
-                    (&p.package_name, &p.container_name, &t.name),
-                    t.end_time.signed_duration_since(t.start_time).num_milliseconds()
-                ))
-                .collect::<Vec<_>>()
-        })
-        //.collect_vec().iter()
-        //.group_by(|x| x.0)
-        .collect_vec();
-
-    println!("{:?}", result);
+    builder.packages
 }
 
 fn get_leaf_tasks(tasks : &Vec<Task>) -> Vec<&Task> {
