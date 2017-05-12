@@ -5,17 +5,29 @@ mod model;
 extern crate chrono;
 extern crate regex;
 extern crate itertools;
+#[macro_use] extern crate clap;
 
 use reader::*;
 use model::*;
 use std::io::BufReader;
 use std::fs;
+use std::env;
 use itertools::Itertools;
 use std::iter::Iterator;
 
 fn main() {
 
-    let paths = fs::read_dir(r"C:\Work\Projects\logparser").unwrap();
+   let matches = clap_app!(logparser =>
+            (version: "1.0")
+            (author: "Aleksander Khanteev <khaale@yandex.ru>")
+            (about: "Parses logs, extracts timing stats")
+            (@arg DIR_PATH: -p --path +takes_value "Sets path to search log files")
+        ).get_matches();
+
+    let root_path = matches.value_of("path").unwrap_or(r"C:\Work\Projects\logparser");
+    println!("Using root path: {}", root_path);
+
+    let paths = fs::read_dir(root_path).unwrap();
 
     let packages: Vec<Package> = paths
         .map(|x| x.unwrap().path())
@@ -57,7 +69,7 @@ fn main() {
             (x.0).1,
             (x.0).2,
             (x.1 as f64) / 60f64
-    ));
+        ));
 }
 
 fn get_packages_from_file(path: &str) -> Vec<Package>{
@@ -68,11 +80,19 @@ fn get_packages_from_file(path: &str) -> Vec<Package>{
     let mut builder = Builder::new();
 
     while let Some(e) = reader.next() {
-        match e {
+        let result = match e {
             Event::PackageStarted(e) => builder.start_package(&e),
             Event::ContainerFinished(e) => builder.container_name(&e),
             Event::PreExecuteTask(e) => builder.pre_task(&e),
             Event::PostExecuteTask(e) => builder.post_task(&e)
+        };
+
+        match result {
+            Ok(_) => {},
+            Err(err) => {
+                println!("Error on parsing {}: {:?}", path, err);
+                return Vec::new()
+            }
         }
     }
 
@@ -80,10 +100,12 @@ fn get_packages_from_file(path: &str) -> Vec<Package>{
 }
 
 fn get_leaf_tasks(tasks : &Vec<Task>) -> Vec<&Task> {
-        tasks.iter().flat_map(|t|
+    tasks.iter()
+        .flat_map(|t|
             if t.tasks.is_empty() {
                 vec![t]
             } else {
                 get_leaf_tasks(&t.tasks)
-            }).collect::<Vec<_>>()
+            })
+        .collect::<Vec<_>>()
 }

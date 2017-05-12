@@ -3,8 +3,16 @@
 #![allow(unused_variables)]
 
 use std::cell::RefCell;
+use std::result;
 use chrono::prelude::*;
 use reader::{LogEvent,SsisEvent};
+
+#[derive(Debug)]
+pub enum BuildError {
+    BadFileStructure(&'static str)
+}
+
+pub type Result = result::Result<(),BuildError>;
 
 #[derive(Debug)]
 pub struct Package {
@@ -53,16 +61,22 @@ impl Builder {
         }
     }
 
-    pub fn start_package(&mut self, evt: &LogEvent) {
+    pub fn start_package(&mut self, evt: &LogEvent) -> Result {
         let package = Package {
             package_name: evt.value.clone(),
             container_name: String::new(),
             tasks: Vec::new()
         };
         self.packages.push(package);
+        Ok(())
     }
 
-    pub fn pre_task(&mut self, evt: &SsisEvent) {
+    pub fn pre_task(&mut self, evt: &SsisEvent) -> Result {
+
+        if self.packages.len() == 0 {
+            return Err(BuildError::BadFileStructure("No package for pre_task event"))
+        } 
+
         let task = Task {
             tasks: Vec::new(),
             name: evt.value.clone(),
@@ -70,27 +84,41 @@ impl Builder {
             end_time: evt.time
         };
         self.tasks_stack.push(task);
+        Ok(())
     }
 
-    pub fn post_task(&mut self, evt: &SsisEvent) {
-        let mut task = self.tasks_stack.pop().unwrap();
+    pub fn post_task(&mut self, evt: &SsisEvent) -> Result {
+        let mut task = match self.tasks_stack.pop() {
+            Some(x) => x,
+            None => return Err(BuildError::BadFileStructure("No matching pretask for post_task event"))
+        };
 
         task.set_end_time(evt.time);
 
         if let Some(parent_task) = self.tasks_stack.last_mut() {
             parent_task.tasks.push(task)
         } else {
-            self.packages.last_mut().unwrap().tasks.push(task)
+            match self.packages.last_mut() {
+                Some(x) => x.tasks.push(task),                
+                None => return Err(BuildError::BadFileStructure("No package for post_task event"))
+            }
         }
+        Ok(())
     }
 
-    pub fn container_name(&mut self, evt: &LogEvent) {
-        let package = self.packages.last_mut().unwrap();
-        package.set_container_name(evt.value.clone());
+    pub fn container_name(&mut self, evt: &LogEvent) -> Result {
+        match self.packages.last_mut() {
+            Some(package) => {
+                package.set_container_name(evt.value.clone());
+                Ok(())
+            },
+            None => Err(BuildError::BadFileStructure("No package for container_name event"))
+        }
     }
 }
 
 #[cfg(test)]
+#[allow(unused_must_use)]
 mod tests {
     use super::*;
     use chrono::prelude::*;
@@ -219,5 +247,59 @@ mod tests {
         assert!(actual_task1.tasks.len() == 1);
         let actual_task2 = actual_task1.tasks.get(0).unwrap();
         assert!(actual_task2.name == "task2");
+    }
+
+    #[test] 
+    fn should_return_error_on_pre_start_task_when_package_not_started()
+    {
+        let mut sut = Builder::new();
+
+        let result = sut.pre_task(&ssis_event!("task1"));
+
+        match result {
+            Err(_) => assert!(true),
+            Ok(_) => assert!(false,"Expected error")
+        }
+    }
+
+    #[test] 
+    fn should_return_error_on_post_start_task_when_package_not_started()
+    {
+        let mut sut = Builder::new();
+
+        sut.pre_task(&ssis_event!());
+        let result = sut.post_task(&ssis_event!());
+
+        match result {
+            Err(_) => assert!(true),
+            Ok(_) => assert!(false,"Expected error")
+        }
+    }
+
+    #[test] 
+    fn should_return_error_on_post_start_task_when_pre_task_not_called()
+    {
+        let mut sut = Builder::new();
+
+        sut.start_package(&log_event!());
+        let result = sut.post_task(&ssis_event!());
+
+        match result {
+            Err(_) => assert!(true),
+            Ok(_) => assert!(false,"Expected error")
+        }
+    }
+
+    #[test] 
+    fn should_return_error_on_container_name_when_package_not_started()
+    {
+        let mut sut = Builder::new();
+
+        let result = sut.container_name(&log_event!());
+
+        match result {
+            Err(_) => assert!(true),
+            Ok(_) => assert!(false,"Expected error")
+        }
     }
 }

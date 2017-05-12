@@ -58,20 +58,15 @@ impl<R: BufRead> EventReader<R> {
             return None;
         }
 
-        match DateTime::parse_from_rfc3339(&line[..33]) {
-            Ok(dt) => Some(dt),
-            Err(_) => None
-        }
+        DateTime::parse_from_rfc3339(&line[..33]).ok()
     }
 
     fn handle_ssis_event(& self, line: &str, dt: &DateTime<FixedOffset>, rgx: &Regex) -> Option<SsisEvent> {
-        match rgx.captures(&line[34..]) {
-            None => None,
-            Some(c) => Some(SsisEvent {
+        rgx.captures(&line[34..]).and_then(|c| 
+            Some(SsisEvent {
                 value: c.get(1).unwrap().as_str().to_string(),
                 time: dt.clone()
-            })
-        }
+            }))
     }
 
     fn handle_line(& self, line: &str) -> Option<Event> {
