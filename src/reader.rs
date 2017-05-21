@@ -25,19 +25,16 @@ pub struct EventReader<R: BufRead> {
 
 impl<R: BufRead> EventReader<R> {
 
-
     /// Creates a new reader, consuming the given stream.
     pub fn new(source: R) -> EventReader<R> {
         EventReader { source: source }
     }
 
     fn handle_log_event(& self, line: &str, rgx: &Regex) -> Option<LogEvent> {
-        match rgx.captures(line) {
-            None => None,
-            Some(c) => Some(LogEvent {
+        rgx.captures(line).and_then(|c|
+            Some(LogEvent { 
                 value: c.get(1).unwrap().as_str().to_string()
-            })
-        }
+            }))
     }
 
     fn check_ssis_event(& self, line: &str) -> Option<DateTime<FixedOffset>> {

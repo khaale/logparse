@@ -194,9 +194,9 @@ mod tests {
         let actual_task_option = tasks.last();
         assert!(actual_task_option.is_some());
         let actual_task = actual_task_option.unwrap();
-        assert!(actual_task.name == "task_1");
-        assert!(actual_task.start_time == time_start);
-        assert!(actual_task.end_time == time_end);
+        assert_eq!(actual_task.name, "task_1");
+        assert_eq!(actual_task.start_time, time_start);
+        assert_eq!(actual_task.end_time, time_end);
     }
 
     #[test]
@@ -217,11 +217,11 @@ mod tests {
         sut.container_name(&log_event!());
 
         let tasks = sut.packages.pop().unwrap().tasks;
-        assert!(tasks.len() == 2);
+        assert_eq!(tasks.len(), 2);
         let actual_task1 = tasks.get(0).unwrap();
-        assert!(actual_task1.name == "task1");
+        assert_eq!(actual_task1.name, "task1");
         let actual_task2 = tasks.get(1).unwrap();
-        assert!(actual_task2.name == "task2");
+        assert_eq!(actual_task2.name, "task2");
 
     }
 
@@ -241,12 +241,12 @@ mod tests {
 
         println!("{:?}",&sut.packages);
         let tasks = sut.packages.pop().unwrap().tasks;
-        assert!(tasks.len() == 1);
+        assert_eq!(tasks.len(), 1);
         let actual_task1 = tasks.get(0).unwrap();
-        assert!(actual_task1.name == "task1");
-        assert!(actual_task1.tasks.len() == 1);
+        assert_eq!(actual_task1.name, "task1");
+        assert_eq!(actual_task1.tasks.len(), 1);
         let actual_task2 = actual_task1.tasks.get(0).unwrap();
-        assert!(actual_task2.name == "task2");
+        assert_eq!(actual_task2.name, "task2");
     }
 
     #[test] 

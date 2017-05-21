@@ -11,7 +11,6 @@ use reader::*;
 use model::*;
 use std::io::BufReader;
 use std::fs;
-use std::env;
 use itertools::Itertools;
 use std::iter::Iterator;
 
@@ -24,7 +23,7 @@ fn main() {
             (@arg DIR_PATH: -p --path +takes_value "Sets path to search log files")
         ).get_matches();
 
-    let root_path = matches.value_of("path").unwrap_or(r"C:\Work\Projects\logparser");
+    let root_path = matches.value_of("path").unwrap_or(r"C:\Users\Aleksander\Documents\projects\logparse\");
     println!("Using root path: {}", root_path);
 
     let paths = fs::read_dir(root_path).unwrap();
@@ -33,9 +32,9 @@ fn main() {
         .map(|x| x.unwrap().path())
         .filter(|x|
             match x.extension() {
-                Some(ext) if ext == "log" =>
+                Some(ext) if ext == "log" => 
                     { println!("Processing: {}", x.display()); true },
-                _ =>
+                _ => 
                     { println!("Skipping: {}", x.display()); false }
         })
         .flat_map(
@@ -43,7 +42,7 @@ fn main() {
                 Some(p) => get_packages_from_file(p),
                 None => Vec::new()
             })
-        .collect::<Vec<_>>();
+        .collect();
 
     let sorted = packages.iter()
         .flat_map(|p| {
@@ -87,15 +86,11 @@ fn get_packages_from_file(path: &str) -> Vec<Package>{
             Event::PostExecuteTask(e) => builder.post_task(&e)
         };
 
-        match result {
-            Ok(_) => {},
-            Err(err) => {
-                println!("Error on parsing {}: {:?}", path, err);
-                return Vec::new()
-            }
-        }
+        if let Some(err) = result.err() {
+            println!("Error on parsing {}: {:?}", path, err);
+            return Vec::new()
+        };
     }
-
     builder.packages
 }
 
@@ -107,5 +102,5 @@ fn get_leaf_tasks(tasks : &Vec<Task>) -> Vec<&Task> {
             } else {
                 get_leaf_tasks(&t.tasks)
             })
-        .collect::<Vec<_>>()
+        .collect()
 }
