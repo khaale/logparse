@@ -15,19 +15,19 @@ use itertools::Itertools;
 use std::iter::Iterator;
 
 fn main() {
-
+   // parse arguments 
    let matches = clap_app!(logparser =>
             (version: "1.0")
             (author: "Aleksander Khanteev <khaale@yandex.ru>")
             (about: "Parses logs, extracts timing stats")
             (@arg DIR_PATH: -p --path +takes_value "Sets path to search log files")
         ).get_matches();
-
+    // get log file(s) path(s)
     let root_path = matches.value_of("path").unwrap_or(r"C:\Users\Aleksander\Documents\projects\logparse\");
     println!("Using root path: {}", root_path);
-
     let paths = fs::read_dir(root_path).unwrap();
 
+    // gathering packages
     let packages: Vec<Package> = paths
         .map(|x| x.unwrap().path())
         .filter(|x|
@@ -43,7 +43,7 @@ fn main() {
                 None => Vec::new()
             })
         .collect();
-
+    // aggregate and sort leaf task timings 
     let sorted = packages.iter()
         .flat_map(|p| {
             get_leaf_tasks(&p.tasks)
@@ -58,7 +58,8 @@ fn main() {
         .into_iter()
         .map(|g| (g.0, g.1.map(|x| x.1).sum::<i64>()))
         .sorted_by(|x1, x2| x2.1.cmp(&x1.1));
-
+    // print output
+    println!("Package Name\tContainer Name\tTask\tAvg time (min)");
     sorted
         .iter()
         .take(10)
